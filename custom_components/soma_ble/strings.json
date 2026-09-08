@@ -1,0 +1,130 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "confirm": {
+        "description": "Add {name}?\n\nSmart Shades 3 motors advertise no name, so they are identified by their Bluetooth address. Use the Identify button afterwards to make the motor beep if you need to tell two apart."
+      },
+      "user": {
+        "data": {
+          "address": "Device"
+        },
+        "description": "Choose a Smart Shades 3 motor. Only motors currently in range of a Bluetooth adapter or proxy are listed."
+      }
+    },
+    "abort": {
+      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
+      "no_devices_found": "No Smart Shades 3 motors found. Wake the motor with the pinhole button on its underside and make sure it is in range of a Bluetooth adapter or proxy.",
+      "not_supported": "This device is not a Smart Shades 3."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "calibrated": {
+        "name": "Needs calibration"
+      },
+      "motor_moving": {
+        "name": "Motor moving"
+      },
+      "external_power": {
+        "name": "External power"
+      },
+      "zigbee_enabled": {
+        "name": "Zigbee radio"
+      }
+    },
+    "button": {
+      "identify": {
+        "name": "Identify"
+      },
+      "mark_open": {
+        "name": "Set open limit here"
+      },
+      "mark_closed": {
+        "name": "Set closed limit here"
+      },
+      "commit_limits": {
+        "name": "Save travel limits"
+      },
+      "clear_limits": {
+        "name": "Clear travel limits"
+      },
+      "reboot": {
+        "name": "Restart motor"
+      }
+    },
+    "number": {
+      "speed": {
+        "name": "Motor speed"
+      }
+    },
+    "sensor": {
+      "battery_voltage": {
+        "name": "Battery voltage"
+      },
+      "input_voltage": {
+        "name": "Input voltage"
+      },
+      "driver_temperature": {
+        "name": "Driver temperature"
+      },
+      "light_level": {
+        "name": "Light level"
+      },
+      "move_count": {
+        "name": "Move count"
+      },
+      "last_move_duration": {
+        "name": "Last move duration"
+      },
+      "last_move_max_rpm": {
+        "name": "Last move peak RPM"
+      },
+      "last_move_max_pwm": {
+        "name": "Last move peak PWM"
+      },
+      "last_move_high_current": {
+        "name": "Last move stall events"
+      },
+      "last_move_low_voltage": {
+        "name": "Last move low-voltage events"
+      },
+      "charger_status": {
+        "name": "Charger status"
+      },
+      "charger_fault": {
+        "name": "Charger fault"
+      },
+      "boot_counter": {
+        "name": "Boot count"
+      },
+      "firmware": {
+        "name": "Firmware"
+      }
+    },
+    "switch": {
+      "touch_enabled": {
+        "name": "Touch control"
+      },
+      "zigbee_radio": {
+        "name": "Zigbee radio"
+      }
+    }
+  },
+  "services": {
+    "jog": {
+      "name": "Jog motor",
+      "description": "Run the motor for a fixed time, then stop. Used to reach the true top and bottom while setting travel limits. Only works while the shade is uncalibrated \u2014 once limits are saved the motor ignores raw jog commands.",
+      "fields": {
+        "direction": {
+          "name": "Direction",
+          "description": "Which way to run the motor."
+        },
+        "seconds": {
+          "name": "Seconds",
+          "description": "How long to run before stopping. Keep this small: an uncalibrated motor has no end stops, so this duration is the only thing limiting travel."
+        }
+      }
+    }
+  }
+}
