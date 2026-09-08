@@ -1,18 +1,24 @@
 {
   "domain": "soma_ble",
   "name": "SOMA Smart Shades 3 (Bluetooth)",
-  "codeowners": ["@pete-jorgensen"],
-  "config_flow": true,
-  "dependencies": ["bluetooth_adapters"],
-  "documentation": "https://github.com/pete-jorgensen/soma-ble",
-  "integration_type": "device",
-  "iot_class": "local_push",
-  "issue_tracker": "https://github.com/pete-jorgensen/soma-ble/issues",
-  "requirements": ["bleak-retry-connector>=3.5.0"],
-  "version": "0.1.0",
   "bluetooth": [
     {
       "manufacturer_id": 880
     }
-  ]
+  ],
+  "codeowners": [
+    "@pete-jorgensen"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "bluetooth_adapters"
+  ],
+  "documentation": "https://github.com/pete-jorgensen/soma-ble",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/pete-jorgensen/soma-ble/issues",
+  "requirements": [
+    "bleak-retry-connector>=3.5.0"
+  ],
+  "version": "0.1.0"
 }
