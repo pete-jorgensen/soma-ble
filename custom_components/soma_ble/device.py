@@ -29,6 +29,7 @@ from .protocol import (
     ProtocolError,
     as_float,
     as_int,
+    as_signed_int,
     as_text,
     build,
     parse,
@@ -137,9 +138,9 @@ _REFRESH: tuple[tuple[str, Cmd, str], ...] = (
     ("battery_percent", Cmd.GET_BATTERY_PCT, "int"),
     ("battery_voltage_mv", Cmd.GET_BATTERY_VOLTAGE, "int"),
     ("input_voltage_mv", Cmd.GET_INPUT_VOLTAGE, "int"),
-    ("open_limit", Cmd.GET_OPEN_POSITION, "int"),
-    ("closed_limit", Cmd.GET_CLOSED_POSITION, "int"),
-    ("current_position", Cmd.GET_CURRENT_POSITION, "int"),
+    ("open_limit", Cmd.GET_OPEN_POSITION, "sint"),
+    ("closed_limit", Cmd.GET_CLOSED_POSITION, "sint"),
+    ("current_position", Cmd.GET_CURRENT_POSITION, "sint"),
     ("motor_moving", Cmd.GET_MOTOR_MOVING, "bool"),
     ("motor_status", Cmd.GET_MOTOR_STATUS, "int"),
     ("move_count", Cmd.GET_MOVE_COUNT, "int"),
@@ -169,7 +170,7 @@ def _is_missing_characteristic(err: Exception) -> bool:
     return "not found" in text and ("characteristic" in text or "5191" in text or "5192" in text)
 
 
-_DECODERS = {"int": as_int, "bool": lambda d: None if as_int(d) is None else bool(as_int(d)),
+_DECODERS = {"int": as_int, "sint": as_signed_int, "bool": lambda d: None if as_int(d) is None else bool(as_int(d)),
              "float": as_float, "text": as_text}
 
 

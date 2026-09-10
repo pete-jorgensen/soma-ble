@@ -62,6 +62,22 @@ class TestParse:
     def test_integer_replies(self, raw, cmd, expected):
         assert p.as_int(p.parse(bytes.fromhex(raw), cmd)) == expected
 
+    def test_encoder_positions_are_signed(self):
+        """A limit below the zeroed origin is negative, and unsigned it looks plausible.
+
+        Captured from a real motor mid-calibration: the closed limit was -1032, which read
+        back as 4294966264 while it was being decoded unsigned -- large enough to look like
+        a real position rather than an obvious fault.
+        """
+        raw = bytes.fromhex("2404f8fbffff")
+        assert p.as_signed_int(p.parse(raw, p.Cmd.GET_CLOSED_POSITION)) == -1032
+        assert p.as_int(p.parse(raw, p.Cmd.GET_CLOSED_POSITION)) == 4294966264
+
+    def test_signed_and_unsigned_agree_on_positive_values(self):
+        raw = bytes.fromhex("2404f9010000")
+        assert p.as_signed_int(p.parse(raw, p.Cmd.GET_CLOSED_POSITION)) == 505
+        assert p.as_int(p.parse(raw, p.Cmd.GET_CLOSED_POSITION)) == 505
+
     def test_short_frame_is_rejected(self):
         with pytest.raises(p.ProtocolError):
             p.parse(b"\x11")

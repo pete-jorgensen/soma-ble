@@ -48,11 +48,42 @@ the configured flag, the limits and the encoder position, and nothing else. The 
 pairing, the Zigbee-enabled flag, touch, speed, device name, advertising interval, TX
 power, timezone, move count and boot counter all survive. It is not a factory reset.
 
-**Position is unreadable until calibrated.** ``GET_CURRENT_POSITION`` returns 0 while the
-motor is uncalibrated, in BOTH directions, even while the motor is turning. The firmware
-still tracks position internally -- a limit setter stores a real encoder value at a moment
-when the getter reads 0 -- so during calibration there is no position feedback and the ends
-have to be judged by eye.
+**Position is unreadable until calibrated -- but it can be probed.** ``GET_CURRENT_POSITION``
+returns 0 while the motor is uncalibrated, in BOTH directions, even while the motor is
+turning. The firmware still tracks position internally, so ``SET_OPEN_POSITION`` /
+``SET_CLOSED_POSITION`` capture a real encoder value at a moment when the getter reads 0.
+Since the marks do not latch until ``SET_POSITIONS_CONFIGURED``, marking is a
+**non-destructive way to read the current count** during calibration, and can be redone as
+often as needed. That is how the counts-per-inch figure below was obtained.
+
+**There is no "go to count N" command.** Positioning is ``SET_CLOSED_PCT`` (0-100), which
+works only once calibrated and is closed-loop against the stored limits. Timed raw jogs are
+a calibration-time crutch only.
+
+**Direction is a persistent device setting, and it can be wrong.** ``SWITCH_DIRECTIONS``
+(``0x05``, no payload, acked with ``05 00``) flips which way the motor drives for a given
+command. It is a toggle with no getter, so the only way to read the current sense is to
+move the motor and look. Set it BEFORE committing limits: the limits define which end is
+open and which is closed, so flipping afterwards inverts the meaning of every stored
+position. If "close" raises the shade, one ``SWITCH_DIRECTIONS`` corrects it, and the Zigbee
+cover then agrees with reality too.
+
+**The encoder is linear in travel; speed is nearly constant except at the bottom.**
+Measured by marking a limit at the bottom stop and again part way up:
+**~34 counts per inch**, holding to +/-7% across four segments (34.9, 34.1, 31.9, 36.6) --
+which is inside the tape-measure error, so treat it as linear. Encoder resolution is at
+least ~85 counts per revolution. Speed ran 2.08-2.33 in/s over the main travel; only the
+bottom ~8 inches was slower, ~1.2 in/s, where the slats stack and unstack.
+
+⛔ **A REBOOT ZEROES THE ENCODER, AND THE WAKE BUTTON REBOOTS.** This invalidates any limit
+marked before it: the stored value is in an origin that no longer exists, while a limit
+marked after is in the new one. Committing a mismatched pair produces a shade whose travel
+range is silently wrong -- measured live, a pair straddling one reboot gave a span a
+fraction of the real travel, i.e. a shade that believed it was far shorter than it is.
+Nothing in the device reports this; the only tell is the count not matching what the
+movement should have produced. ``GET_BOOT_COUNTER`` (``0x18``) is the check: if it has
+changed since a mark was taken, that mark is void. Marks must all be made in one boot, and
+the pinhole wake button counts as a reboot.
 
 **Raw move works only while uncalibrated.** ``OPEN``/``CLOSE`` free-run the motor while the
 limits are unset -- that is how calibration is performed -- and stop driving it once the
@@ -236,6 +267,20 @@ def parse(reply: bytes, expect: Cmd | int | None = None) -> bytes:
 def as_int(data: bytes) -> int | None:
     """Little-endian unsigned int, or None for an empty payload."""
     return int.from_bytes(data, "little") if data else None
+
+
+def as_signed_int(data: bytes) -> int | None:
+    """Little-endian SIGNED int -- the encoding of every encoder position.
+
+    ⚠️ Encoder positions can be NEGATIVE. ``RESET_SETTINGS`` zeroes the count wherever the
+    shade happens to be, and which way the count then runs depends on the motor's direction
+    setting, so a limit below that zero point is a negative number. Decoded unsigned it
+    appears as a value near 2**32 -- e.g. a closed limit of -1032 reads as 4294966264, which
+    looks like a plausible-but-enormous position rather than an obvious error.
+    """
+    if not data:
+        return None
+    return int.from_bytes(data, "little", signed=True)
 
 
 def as_bool(data: bytes) -> bool | None:
