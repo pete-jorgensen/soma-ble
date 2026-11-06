@@ -20,7 +20,13 @@ from typing import Any
 from bleak.backends.device import BLEDevice
 from bleak_retry_connector import BleakClientWithServiceCache, establish_connection
 
-from .const import CONNECT_RETRIES, CONNECT_TIMEOUT, REPLY_POLL, REPLY_TIMEOUT
+from .const import (
+    CONNECT_RETRIES,
+    CONNECT_TIMEOUT,
+    READ_BACK_DELAY,
+    REPLY_POLL,
+    REPLY_TIMEOUT,
+)
 from .protocol import (
     READ_UUID,
     WRITE_UUID,
@@ -45,7 +51,7 @@ class SomaConnectionError(Exception):
 class SomaServiceCacheError(SomaConnectionError):
     """The command characteristic was missing from the cached GATT service list.
 
-    ⚠️ This device is unusually prone to it. An SS3 does not advertise its command
+    This device is unusually prone to it. An SS3 does not advertise its command
     service at all -- ``8998a466-...`` only appears after connecting -- so a connection
     that resolves services early, or a cache populated while another client held the
     device, leaves ``BleakClientWithServiceCache`` certain the characteristic does not
@@ -101,6 +107,10 @@ class SomaState:
     boot_counter: int | None = None
     zigbee_enabled: bool | None = None
     touch_enabled: bool | None = None
+    #: The BLE advertising interval, in the device's own units. Read-only: it
+    #: shows whether a slow connectable route is the motor advertising slowly or something
+    #: above the radio losing advertisements.
+    adv_interval: int | None = None
 
     #: Getters that failed to decode on the last refresh, so the cause is visible rather
     #: than silently absent. Some firmware builds answer a few opcodes with a payload the
@@ -120,6 +130,18 @@ class SomaState:
         self.closed_percent = adv.closed_percent
         self.battery_percent = adv.battery_percent
 
+
+#: The few values worth re-reading on the SAME connection as a move command.
+#:
+#: Piggybacked on purpose. A reconnect straight after a command is often refused -- the
+#: motor drops the link and goes quiet -- and the full getter set costs ~16 s of
+#: connected time to re-read two dozen values a move cannot have changed. These
+#: three are the ones it does change, and on the open link they cost about a second.
+_REFRESH_AFTER_MOVE: tuple[tuple[str, "Cmd", str], ...] = (
+    ("motor_moving", Cmd.GET_MOTOR_MOVING, "bool"),
+    ("closed_percent", Cmd.GET_CLOSED_PCT, "int"),
+    ("current_position", Cmd.GET_CURRENT_POSITION, "sint"),
+)
 
 #: The connected refresh. Ordered so that a link which drops part way still leaves the most
 #: important fields populated.
@@ -157,6 +179,7 @@ _REFRESH: tuple[tuple[str, Cmd, str], ...] = (
     ("boot_counter", Cmd.GET_BOOT_COUNTER, "int"),
     ("zigbee_enabled", Cmd.GET_ZIGBEE_ENABLED, "bool"),
     ("touch_enabled", Cmd.GET_TOUCH_ENABLED, "bool"),
+    ("adv_interval", Cmd.GET_ADV_INTERVAL, "int"),
 )
 
 def _is_missing_characteristic(err: Exception) -> bool:
@@ -264,8 +287,8 @@ class SomaDevice:
         # Poll for OUR reply rather than sleeping for the worst case. The read
         # characteristic holds the PREVIOUS answer until this command's lands, and the
         # opcode tells the two apart -- so the same check that stops an ignored command
-        # reading as a success also lets the fast path be fast. A flat sleep here cost
-        # ~19 s of connected time per refresh across the full getter set.
+        # reading as a success also lets the fast path be fast. A flat worst-case sleep
+        # here would hold the link open far longer across the full getter set.
         deadline = asyncio.get_running_loop().time() + REPLY_TIMEOUT
         while True:
             await asyncio.sleep(REPLY_POLL)
@@ -301,29 +324,61 @@ class SomaDevice:
 
     # -- public operations --------------------------------------------------------
 
+    async def _read_into_state(
+        self, client: BleakClientWithServiceCache, getters
+    ) -> list[str]:
+        """Run a list of getters on an OPEN link, into ``self.state``.
+
+        Returns the attribute names that could not be decoded, so the caller decides
+        whether that list is worth publishing -- a partial read must not overwrite the
+        record of what a full read could not manage.
+        """
+        unreadable: list[str] = []
+        for attr, cmd, kind in getters:
+            try:
+                data = await self._exchange(client, cmd)
+            except ProtocolError as err:
+                _LOGGER.debug("%s: %s could not be read: %s", self.address, attr, err)
+                unreadable.append(attr)
+                continue
+            value = _DECODERS[kind](data)
+            if value is not None:
+                setattr(self.state, attr, value)
+        return unreadable
+
     async def async_refresh(self) -> SomaState:
         """Connect once and read the whole diagnostic surface."""
 
         async def _read_all(client) -> SomaState:
-            unreadable: list[str] = []
-            for attr, cmd, kind in _REFRESH:
-                try:
-                    data = await self._exchange(client, cmd)
-                except ProtocolError as err:
-                    _LOGGER.debug("%s: %s could not be read: %s", self.address, attr, err)
-                    unreadable.append(attr)
-                    continue
-                value = _DECODERS[kind](data)
-                if value is not None:
-                    setattr(self.state, attr, value)
-            self.state.unreadable = unreadable
+            self.state.unreadable = await self._read_into_state(client, _REFRESH)
             return self.state
 
         async with self._lock:
             return await self._with_client(_read_all)
 
-    async def async_command(self, cmd: Cmd, payload: bytes = b"") -> None:
-        """Send one command and drop the link."""
+    async def async_read_motion(self) -> SomaState:
+        """Re-read just the values a move changes. One short connection.
+
+        The follow-up to a move: it answers "has it stopped yet", which nothing else can --
+        advertisements carry position and battery only, never `motor moving`.
+        """
+
+        async def _read(client) -> SomaState:
+            await self._read_into_state(client, _REFRESH_AFTER_MOVE)
+            return self.state
+
+        async with self._lock:
+            return await self._with_client(_read)
+
+    async def async_command(
+        self, cmd: Cmd, payload: bytes = b"", *, read_back: bool = False
+    ) -> None:
+        """Send one command and drop the link.
+
+        ``read_back`` re-reads the handful of values a move changes BEFORE the link is
+        dropped. On the open connection that costs about a second; as a separate refresh it
+        would cost a reconnect the motor often refuses, plus ~16 s of getters.
+        """
 
         async def _send(client) -> None:
             try:
@@ -332,6 +387,28 @@ class SomaDevice:
                 # Motion commands do not always leave a matching reply; the state read on
                 # the next refresh is the source of truth, not this ack.
                 _LOGGER.debug("%s: no matching reply to %s", self.address, cmd.name)
+            if read_back:
+                # Let the motor actually start before asking whether it is moving.
+                await asyncio.sleep(READ_BACK_DELAY)
+                try:
+                    await self._read_into_state(client, _REFRESH_AFTER_MOVE)
+                except Exception:  # noqa: BLE001 -- see both reasons below
+                    # The read-back is opportunistic and must never be allowed to fail
+                    # the command, for two separate reasons:
+                    #
+                    # 1. The command has already been DELIVERED. `_exchange` raises
+                    #    SomaConnectionError if the link drops mid-read, and the link
+                    #    dropping right after a command is this motor's normal behaviour --
+                    #    so the user would be told the move failed while the shade moved.
+                    # 2. A SomaServiceCacheError here would reach `_with_client`, whose
+                    #    recovery is to run the whole operation again -- RE-SENDING the
+                    #    motion command. `async_jog` probes with a harmless getter first
+                    #    precisely to make that impossible; this path must not reintroduce
+                    #    it from the other end.
+                    _LOGGER.debug(
+                        "%s: read-back after %s failed; the command itself was sent",
+                        self.address, cmd.name, exc_info=True,
+                    )
 
         async with self._lock:
             await self._with_client(_send)
@@ -342,7 +419,7 @@ class SomaDevice:
         current = self.state.closed_percent
         if current is not None and current != target:
             self._commanded_direction = "closing" if target > current else "opening"
-        await self.async_command(Cmd.SET_CLOSED_PCT, bytes([target]))
+        await self.async_command(Cmd.SET_CLOSED_PCT, bytes([target]), read_back=True)
 
     async def async_jog(self, direction: str, seconds: float) -> None:
         """Run the motor for a bounded time, then stop it.
@@ -362,7 +439,7 @@ class SomaDevice:
                 await self._write_only(client, cmd)
                 await asyncio.sleep(seconds)
             finally:
-                # ⛔ STOP goes out even if the sleep was CANCELLED (config entry unload, HA
+                # STOP goes out even if the sleep was CANCELLED (config entry unload, HA
                 # shutting down, the calling script stopped) or raised. An uncalibrated
                 # motor has no end stops, so this write is the only thing bounding travel;
                 # skipping it runs the shade into its mount. Shielded so that a cancellation

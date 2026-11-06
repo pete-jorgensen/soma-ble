@@ -1,11 +1,11 @@
 """Radio and touch settings.
 
-⚠️ The Zigbee switch is here because turning the radio on is what makes the shade usable
+The Zigbee switch is here because turning the radio on is what makes the shade usable
 over Zigbee at all -- it ships **off from the factory** and the documented way to enable it
 is the vendor phone app. Enabling it over BLE removes the app from the loop entirely.
 
-⛔ The Zigbee stack only starts at boot, so flipping this on is not enough on its own: the
-motor has to be rebooted afterwards (there is a Reboot button). Skipping that looks exactly
+The Zigbee stack only starts at boot, so flipping this on is not enough on its own: the
+motor has to be rebooted afterwards (there is a Restart motor button). Skipping that looks exactly
 like the switch silently failing.
 """
 

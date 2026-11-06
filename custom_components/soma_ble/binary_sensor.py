@@ -26,7 +26,7 @@ class SomaBinaryDescription(BinarySensorEntityDescription):
 
 BINARY_SENSORS: tuple[SomaBinaryDescription, ...] = (
     SomaBinaryDescription(
-        # ⭐ The single most useful entity here. An uncalibrated motor refuses every move
+        # The single most useful entity here. An uncalibrated motor refuses every move
         # while reporting a perfectly healthy Zigbee link, so over Zigbee the fault is
         # undiagnosable. This turns it into one boolean you can alert on.
         key="calibrated",
@@ -66,6 +66,9 @@ async def async_setup_entry(
 
 
 class SomaBinarySensor(SomaEntity, BinarySensorEntity):
+    # A reading. Unavailable rather than stale once the stack stops hearing the shade.
+    _soma_needs_presence = True
+
     entity_description: SomaBinaryDescription
 
     def __init__(self, coordinator, description: SomaBinaryDescription) -> None:

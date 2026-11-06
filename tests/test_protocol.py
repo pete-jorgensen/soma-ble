@@ -1,9 +1,6 @@
 """Protocol tests.
 
-Every reply below is a real frame from a Smart Shades 3 on firmware 3.0.17+0, not one
-invented to match the parser. That distinction is the point: the opcode names come from a
-third-party list, so the only thing that makes this parser trustworthy is that it decodes
-bytes the hardware actually sends.
+Fixtures are replies from a Smart Shades 3, firmware 3.0.17+0.
 """
 
 from __future__ import annotations
@@ -65,9 +62,8 @@ class TestParse:
     def test_encoder_positions_are_signed(self):
         """A limit below the zeroed origin is negative, and unsigned it looks plausible.
 
-        Captured from a real motor mid-calibration: the closed limit was -1032, which read
-        back as 4294966264 while it was being decoded unsigned -- large enough to look like
-        a real position rather than an obvious fault.
+        A closed limit of -1032 decodes unsigned as 4294966264 -- large enough to look like a real position rather than an obvious
+        fault.
         """
         raw = bytes.fromhex("2404f8fbffff")
         assert p.as_signed_int(p.parse(raw, p.Cmd.GET_CLOSED_POSITION)) == -1032

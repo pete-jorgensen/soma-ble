@@ -24,7 +24,7 @@ procedure aimed at a 3 fails rather than destroys -- but do not rely on that.
 
 Opcode NAMES are from the community reference `rzuppur/smart-shades-documentation`
 (``V3.md``). That reference documents names; the behaviour below is the part no name tells
-you. The vendor's names carry a ``CMD_`` prefix (``CMD_RESET_SETTINGS``); :class:`Cmd`
+you. The reference's names carry a ``CMD_`` prefix (``CMD_RESET_SETTINGS``); :class:`Cmd`
 drops it, so ``CMD_RESET_SETTINGS`` is ``Cmd.RESET_SETTINGS`` here.
 
 BEHAVIOUR THAT IS IN NO DATASHEET  (firmware 3.0.17+0)
@@ -51,10 +51,10 @@ power, timezone, move count and boot counter all survive. It is not a factory re
 **Position is unreadable until calibrated -- but it can be probed.** ``GET_CURRENT_POSITION``
 returns 0 while the motor is uncalibrated, in BOTH directions, even while the motor is
 turning. The firmware still tracks position internally, so ``SET_OPEN_POSITION`` /
-``SET_CLOSED_POSITION`` capture a real encoder value at a moment when the getter reads 0.
-Since the marks do not latch until ``SET_POSITIONS_CONFIGURED``, marking is a
-**non-destructive way to read the current count** during calibration, and can be redone as
-often as needed. That is how the counts-per-inch figure below was obtained.
+``SET_CLOSED_POSITION`` record a real encoder value at a moment when the getter reads 0.
+Since the marks do not latch until ``SET_POSITIONS_CONFIGURED``, marking reads the
+current count without side effects during calibration, and can be redone as often as
+needed.
 
 **There is no "go to count N" command.** Positioning is ``SET_CLOSED_PCT`` (0-100), which
 works only once calibrated and is closed-loop against the stored limits. Timed raw jogs are
@@ -68,18 +68,16 @@ open and which is closed, so flipping afterwards inverts the meaning of every st
 position. If "close" raises the shade, one ``SWITCH_DIRECTIONS`` corrects it, and the Zigbee
 cover then agrees with reality too.
 
-**The encoder is linear in travel; speed is nearly constant except at the bottom.**
-Measured by marking a limit at the bottom stop and again part way up:
-**~34 counts per inch**, holding to +/-7% across four segments (34.9, 34.1, 31.9, 36.6) --
-which is inside the tape-measure error, so treat it as linear. Encoder resolution is at
-least ~85 counts per revolution. Speed ran 2.08-2.33 in/s over the main travel; only the
-bottom ~8 inches was slower, ~1.2 in/s, where the slats stack and unstack.
+**The encoder is linear in travel; speed is nearly constant.** The scale is typically
+**~34 counts per inch** of travel (it depends on the roller), and roughly 85 or more
+counts per revolution. Travel speed is roughly 2-2.3 in/s, and slower
+where a blind's slats stack and unstack.
 
-⛔ **A REBOOT ZEROES THE ENCODER, AND THE WAKE BUTTON REBOOTS.** This invalidates any limit
+**A REBOOT ZEROES THE ENCODER, AND THE WAKE BUTTON REBOOTS.** This invalidates any limit
 marked before it: the stored value is in an origin that no longer exists, while a limit
 marked after is in the new one. Committing a mismatched pair produces a shade whose travel
-range is silently wrong -- measured live, a pair straddling one reboot gave a span a
-fraction of the real travel, i.e. a shade that believed it was far shorter than it is.
+range is silently wrong -- a pair straddling one reboot can give a span a fraction of
+the real travel, i.e. a shade that believes it is far shorter than it is.
 Nothing in the device reports this; the only tell is the count not matching what the
 movement should have produced. ``GET_BOOT_COUNTER`` (``0x18``) is the check: if it has
 changed since a mark was taken, that mark is void. Marks must all be made in one boot, and
@@ -117,7 +115,7 @@ MANUFACTURER_ID = 0x0370
 class Cmd(IntEnum):
     """Every documented SS3 opcode.
 
-    Names are the vendor's own. Ones this integration uses are grouped first.
+    Names follow the community reference. Ones this integration uses are grouped first.
     """
 
     # -- motion ---------------------------------------------------------------
@@ -272,7 +270,7 @@ def as_int(data: bytes) -> int | None:
 def as_signed_int(data: bytes) -> int | None:
     """Little-endian SIGNED int -- the encoding of every encoder position.
 
-    ⚠️ Encoder positions can be NEGATIVE. ``RESET_SETTINGS`` zeroes the count wherever the
+    Encoder positions can be NEGATIVE. ``RESET_SETTINGS`` zeroes the count wherever the
     shade happens to be, and which way the count then runs depends on the motor's direction
     setting, so a limit below that zero point is a negative number. Decoded unsigned it
     appears as a value near 2**32 -- e.g. a closed limit of -1032 reads as 4294966264, which

@@ -77,6 +77,12 @@ front LED blinks when it is awake.
 | Zigbee radio | on or off — see [Enabling Zigbee](#enabling-zigbee-without-the-app) |
 | Identify | makes the motor beep |
 | Restart motor | |
+| Jog open / Jog closed | nudge the motor while calibrating — see [Calibrating](#calibrating-without-the-app) |
+| Jog step | how long one jog press runs, in seconds |
+| Set open limit / Set closed limit / Save / Clear travel limits | calibration |
+
+The jog and limit-setting buttons are hidden once the shade is calibrated, because the
+firmware ignores them in that state. **Clear travel limits** stays — it is the way back.
 
 **Diagnostics** — battery percent and voltage, input voltage, external power, driver
 temperature, light level, move count, boot count, firmware, charger status and fault, and
@@ -88,30 +94,51 @@ fouled shows up as rising **stall events** before it fails outright.
 ## Calibrating without the app
 
 A motor with no travel limits refuses to move. Setting them is normally an app job; here it
-is four buttons and a service.
+is buttons on the device page — no YAML, no Developer Tools.
 
 The raw jog only works while the shade is **uncalibrated** — that is the state calibration
 happens in — so if the shade is already calibrated, press **Clear travel limits** first.
 
-1. Get the shade to its true **top**. Either move it by hand, or use the `soma_ble.jog`
-   service with `direction: open` and a small `seconds`.
+1. Get the shade to its true **top**: press **Jog open** as many times as it takes. (You
+   can also just move the shade by hand.)
 2. Press **Set open limit here**.
-3. Get it to its true **bottom** the same way (`direction: close`).
+3. Get it to its true **bottom** the same way, with **Jog closed**.
 4. Press **Set closed limit here**.
 5. Press **Save travel limits**. **Needs calibration** should clear.
 
-⚠️ **Keep `seconds` small.** An uncalibrated motor has no end stops, so that duration is
-the only thing limiting travel. The service caps it at 15 s.
+Each press runs the motor for **Jog step** seconds — a number entity on the same page,
+default 2 s. Turn it up to cross the window, down to land on the stop.
 
-⛔ **The limits latch when saved.** Once saved, the motor acknowledges further limit
+**Keep the jog step small.** An uncalibrated motor has no end stops, so that duration is
+the only thing limiting travel. Both the number and the service cap it at 15 s.
+
+For automations, or for a one-off duration, the same move is available as the `soma_ble.jog`
+service with `direction` and `seconds`.
+
+### If a button seems to do nothing, wait rather than retry
+
+Home Assistant can only open a connection while a recent *connectable* advertisement is in
+its discovered set, and that record can go stale for minutes at a time, even for a motor
+sitting right next to a proxy. A command issued in one of those gaps has nothing
+to connect to, and fails instantly with `no connectable path`.
+
+(The motor itself is not being lazy: it reports a 100 ms / 150 ms advertising interval, so
+it is broadcasting about ten times a second. Whatever loses them sits above the radio.)
+
+The integration handles this: a press waits for the next advertisement, for up to 150
+seconds, before giving up. So a button can take a while to complete and still be working.
+If you would rather not wait, the pinhole button on the underside of the motor wakes it and
+makes it advertise immediately.
+
+**The limits latch when saved.** Once saved, the motor acknowledges further limit
 commands and silently ignores them, and stops responding to jog entirely. **Clear travel
 limits** is the only way back. Despite the underlying opcode being named
 `CMD_RESET_SETTINGS`, it clears only the limits, the configured flag and the encoder
 position — the Zigbee pairing, radio settings, speed, name and counters all survive. It is
 not a factory reset.
 
-If open and closed come out backwards, that is a motor setting (the vendor's
-`CMD_SWITCH_DIRECTIONS`, `Cmd.SWITCH_DIRECTIONS` in the code), not something to fix by
+If open and closed come out backwards, that is a motor setting (the
+`CMD_SWITCH_DIRECTIONS` opcode, `Cmd.SWITCH_DIRECTIONS` in the code), not something to fix by
 re-hanging the shade.
 
 ## Enabling Zigbee without the app
@@ -119,7 +146,7 @@ re-hanging the shade.
 The Zigbee radio is **off from the factory**, and the documented way to turn it on is the
 vendor app. The **Zigbee radio** switch does it over Bluetooth instead.
 
-⛔ The Zigbee stack only starts at boot, so after enabling it press **Restart motor**.
+The Zigbee stack only starts at boot, so after enabling it press **Restart motor**.
 Skipping that looks exactly like the switch silently failing.
 
 ## Two generations, do not mix them

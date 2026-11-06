@@ -1,6 +1,6 @@
 """The shade itself.
 
-⚠️ **An uncalibrated shade refuses every move.** That is not this integration failing --
+**An uncalibrated shade refuses every move.** That is not this integration failing --
 it is the motor declining to run without travel limits, and over Zigbee it is completely
 invisible: the command is accepted, no error is logged, and the shade reports itself fully
 open forever. Here it is surfaced honestly: a move on an uncalibrated shade fails with an
@@ -61,14 +61,17 @@ class SomaCover(SomaEntity, CoverEntity):
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator, "cover")
 
-    # ⛔ `available` reflects REACHABILITY ONLY, never whether the shade will act. Marking
-    # an uncalibrated shade unavailable would be wrong twice over: it misuses the word --
-    # such a shade is perfectly reachable, it just refuses to move -- and Home Assistant
-    # filters unavailable entities out of entity service calls
+    # `available` is NOT overridden here, and must not be: an uncalibrated shade is
+    # perfectly reachable, it just refuses to move, and Home Assistant filters unavailable
+    # entities out of entity service calls
     # (`entity_candidates = [e for e in entity_candidates if e.available]`), which would
     # make the `jog` service registered on this entity unreachable in the ONLY state where
     # jogging works. "It will not move, and why" belongs on the Needs-calibration binary
     # sensor and on an error raised by an actual move attempt.
+    #
+    # The rule that keeps that true for every control, and the failure it prevents, are
+    # in `SomaEntity.available`. This comment is the reason the cover in particular must
+    # never grow its own.
 
     @property
     def current_cover_position(self) -> int | None:
@@ -121,24 +124,34 @@ class SomaCover(SomaEntity, CoverEntity):
         # Deliberately a position command, not CMD_OPEN: the raw motor commands only drive
         # an UNcalibrated motor, so on a working shade they would silently do nothing.
         await self.coordinator.async_command_and_refresh(
-            self.coordinator.device.async_set_closed_percent(0)
+            self.coordinator.device.async_set_closed_percent(0),
+            refresh=False,
+            follow_motion=True,
         )
 
     async def async_close_cover(self, **kwargs: Any) -> None:
         self._assert_calibrated()
         await self.coordinator.async_command_and_refresh(
-            self.coordinator.device.async_set_closed_percent(100)
+            self.coordinator.device.async_set_closed_percent(100),
+            refresh=False,
+            follow_motion=True,
         )
 
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         self._assert_calibrated()
         await self.coordinator.async_command_and_refresh(
-            self.coordinator.device.async_set_closed_percent(100 - kwargs[ATTR_POSITION])
+            self.coordinator.device.async_set_closed_percent(100 - kwargs[ATTR_POSITION]),
+            refresh=False,
+            follow_motion=True,
         )
 
     async def async_stop_cover(self, **kwargs: Any) -> None:
         await self.coordinator.async_command_and_refresh(
-            self.coordinator.device.async_command(Cmd.STOP)
+            self.coordinator.device.async_command(Cmd.STOP, read_back=True),
+            refresh=False,
+            # Confirm it really stopped. The read-back can still catch it decelerating,
+            # and a cover stuck reporting movement is the bug this guards.
+            follow_motion=True,
         )
 
     async def async_jog(self, direction: str, seconds: float) -> None:
@@ -152,6 +165,8 @@ class SomaCover(SomaEntity, CoverEntity):
                 "This shade is already calibrated, and a calibrated motor ignores jog "
                 "commands. Press 'Clear travel limits' first if you want to re-calibrate."
             )
+        # Same as the jog buttons: no follow-up read. A jog is repeated, seconds apart,
+        # and the values it changes are read when the limits are marked.
         await self.coordinator.async_command_and_refresh(
-            self.coordinator.device.async_jog(direction, seconds)
+            self.coordinator.device.async_jog(direction, seconds), refresh=False
         )

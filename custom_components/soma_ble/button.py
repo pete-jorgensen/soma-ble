@@ -1,9 +1,16 @@
 """Calibration, and the two buttons that make a shade findable and recoverable.
 
-⛔ **Calibration latches.** Once the limits are committed the motor ignores further
+**Calibration latches.** Once the limits are committed the motor ignores further
 mark commands and stops responding to the raw jog, so the only way to re-calibrate is
 `Clear travel limits`. That is why these buttons exist at all: without them a shade
 calibrated wrongly is stuck that way unless you own the vendor phone app.
+
+**Jogging is a button, not only a service.** Setting travel limits means nudging the
+motor and pressing a mark, over and over, standing at the window. A service alone is
+reachable only from Developer Tools, which is admin-only and can be hidden from the sidebar
+entirely, so the nudge has to be a button too. The `soma_ble.jog` service
+remains for automations and for an arbitrary duration; these buttons are the same thing at
+the `Jog step` duration, on the device page next to the marks they are used with.
 """
 
 from __future__ import annotations
@@ -18,17 +25,22 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import SomaConfigEntry
-from .device import SomaDevice
+from .coordinator import SomaCoordinator
 from .entity import SomaEntity
 from .protocol import Cmd
 
 
 @dataclass(frozen=True, kw_only=True)
 class SomaButtonDescription(ButtonEntityDescription):
-    press: Callable[[SomaDevice], Coroutine[Any, Any, None]]
+    #: Takes the COORDINATOR, not the device: the jog buttons need `jog_seconds`, which is
+    #: a preference the coordinator owns rather than anything the motor reports.
+    press: Callable[[SomaCoordinator], Coroutine[Any, Any, None]]
     #: True for buttons that only do anything on an UNcalibrated shade. They are disabled
     #: once it is calibrated rather than left to fail silently.
     uncalibrated_only: bool = False
+    #: False to skip the connected re-read after the press. Only the jogs set this; see
+    #: `SomaCoordinator.async_command_and_refresh`.
+    refresh: bool = True
 
 
 BUTTONS: tuple[SomaButtonDescription, ...] = (
@@ -38,28 +50,44 @@ BUTTONS: tuple[SomaButtonDescription, ...] = (
         key="identify",
         translation_key="identify",
         entity_category=EntityCategory.DIAGNOSTIC,
-        press=lambda d: d.async_command(Cmd.IDENTIFY),
+        press=lambda c: c.device.async_command(Cmd.IDENTIFY),
+    ),
+    SomaButtonDescription(
+        key="jog_open",
+        translation_key="jog_open",
+        entity_category=EntityCategory.CONFIG,
+        uncalibrated_only=True,
+        refresh=False,
+        press=lambda c: c.device.async_jog("open", c.jog_seconds),
+    ),
+    SomaButtonDescription(
+        key="jog_close",
+        translation_key="jog_close",
+        entity_category=EntityCategory.CONFIG,
+        uncalibrated_only=True,
+        refresh=False,
+        press=lambda c: c.device.async_jog("close", c.jog_seconds),
     ),
     SomaButtonDescription(
         key="mark_open",
         translation_key="mark_open",
         entity_category=EntityCategory.CONFIG,
         uncalibrated_only=True,
-        press=lambda d: d.async_calibrate("mark_open"),
+        press=lambda c: c.device.async_calibrate("mark_open"),
     ),
     SomaButtonDescription(
         key="mark_closed",
         translation_key="mark_closed",
         entity_category=EntityCategory.CONFIG,
         uncalibrated_only=True,
-        press=lambda d: d.async_calibrate("mark_closed"),
+        press=lambda c: c.device.async_calibrate("mark_closed"),
     ),
     SomaButtonDescription(
         key="commit_limits",
         translation_key="commit_limits",
         entity_category=EntityCategory.CONFIG,
         uncalibrated_only=True,
-        press=lambda d: d.async_calibrate("commit"),
+        press=lambda c: c.device.async_calibrate("commit"),
     ),
     SomaButtonDescription(
         # Despite the underlying opcode's name (CMD_RESET_SETTINGS) it clears ONLY the
@@ -68,13 +96,13 @@ BUTTONS: tuple[SomaButtonDescription, ...] = (
         key="clear_limits",
         translation_key="clear_limits",
         entity_category=EntityCategory.CONFIG,
-        press=lambda d: d.async_calibrate("reset"),
+        press=lambda c: c.device.async_calibrate("reset"),
     ),
     SomaButtonDescription(
         key="reboot",
         translation_key="reboot",
         entity_category=EntityCategory.CONFIG,
-        press=lambda d: d.async_command(Cmd.REBOOT),
+        press=lambda c: c.device.async_command(Cmd.REBOOT),
     ),
 )
 
@@ -103,5 +131,6 @@ class SomaButton(SomaEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.coordinator.async_command_and_refresh(
-            self.entity_description.press(self.coordinator.device)
+            self.entity_description.press(self.coordinator),
+            refresh=self.entity_description.refresh,
         )

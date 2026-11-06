@@ -86,6 +86,17 @@ SENSORS: tuple[SomaSensorDescription, ...] = (
         value=lambda s: s.light_level,
     ),
     SomaSensorDescription(
+        # RAW, deliberately: no datasheet describes this field, so the entity publishes
+        # the number rather than a guessed decoding. A typical value, 0xF000A0, reads as
+        # the usual BLE min/max pair -- 160 and 240 units of 0.625 ms, i.e. 100 ms and
+        # 150 ms.
+        key="adv_interval",
+        translation_key="adv_interval",
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value=lambda s: s.adv_interval,
+    ),
+    SomaSensorDescription(
         key="move_count",
         translation_key="move_count",
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -164,6 +175,9 @@ async def async_setup_entry(
 
 
 class SomaSensor(SomaEntity, SensorEntity):
+    # A reading. Unavailable rather than stale once the stack stops hearing the shade.
+    _soma_needs_presence = True
+
     entity_description: SomaSensorDescription
 
     def __init__(self, coordinator, description: SomaSensorDescription) -> None:

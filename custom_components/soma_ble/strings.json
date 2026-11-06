@@ -37,6 +37,12 @@
       "identify": {
         "name": "Identify"
       },
+      "jog_open": {
+        "name": "Jog open"
+      },
+      "jog_close": {
+        "name": "Jog closed"
+      },
       "mark_open": {
         "name": "Set open limit here"
       },
@@ -56,6 +62,9 @@
     "number": {
       "speed": {
         "name": "Motor speed"
+      },
+      "jog_step": {
+        "name": "Jog step"
       }
     },
     "sensor": {
@@ -100,6 +109,9 @@
       },
       "firmware": {
         "name": "Firmware"
+      },
+      "adv_interval": {
+        "name": "Advertising interval (raw)"
       }
     },
     "switch": {
@@ -114,7 +126,7 @@
   "services": {
     "jog": {
       "name": "Jog motor",
-      "description": "Run the motor for a fixed time, then stop. Used to reach the true top and bottom while setting travel limits. Only works while the shade is uncalibrated \u2014 once limits are saved the motor ignores raw jog commands.",
+      "description": "Run the motor for a fixed time, then stop. Used to reach the true top and bottom while setting travel limits. Only works while the shade is uncalibrated — once limits are saved the motor ignores raw jog commands.",
       "fields": {
         "direction": {
           "name": "Direction",
