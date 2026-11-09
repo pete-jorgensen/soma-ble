@@ -60,9 +60,6 @@
       }
     },
     "number": {
-      "speed": {
-        "name": "Motor speed"
-      },
       "jog_step": {
         "name": "Jog step"
       }
@@ -112,14 +109,6 @@
       },
       "adv_interval": {
         "name": "Advertising interval (raw)"
-      }
-    },
-    "switch": {
-      "touch_enabled": {
-        "name": "Touch control"
-      },
-      "zigbee_radio": {
-        "name": "Zigbee radio"
       }
     }
   },

@@ -70,8 +70,8 @@ cover then agrees with reality too.
 
 **The encoder is linear in travel; speed is nearly constant.** The scale is typically
 **~34 counts per inch** of travel (it depends on the roller), and roughly 85 or more
-counts per revolution. Travel speed is roughly 2-2.3 in/s, and slower
-where a blind's slats stack and unstack.
+counts per revolution. Travel speed is roughly 2-2.3 in/s, and can be slower where the
+load on the roller changes.
 
 **A REBOOT ZEROES THE ENCODER, AND THE WAKE BUTTON REBOOTS.** This invalidates any limit
 marked before it: the stored value is in an origin that no longer exists, while a limit
@@ -161,6 +161,7 @@ class Cmd(IntEnum):
     GET_LAST_MOVE_NORMAL_COUNT = 0x58
     GET_LAST_MOVE_SMALLEST_CELL_MIN = 0x54
     GET_RPM = 0x1E
+    # SET_SPEED: the integration never sends it (its payload format is not documented).
     SET_SPEED = 0x0C
     GET_SPEED = 0x0F
 
@@ -181,6 +182,8 @@ class Cmd(IntEnum):
     GO_TO_SLEEP = 0x26
 
     # -- radios ---------------------------------------------------------------
+    # SET_ZIGBEE_ENABLED and SET_TOUCH_ENABLED: the integration never sends them (their
+    # payload format is not documented). The getters are used.
     SET_ZIGBEE_ENABLED = 0x50
     GET_ZIGBEE_ENABLED = 0x51
     RESET_ZIGBEE = 0x46

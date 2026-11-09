@@ -16,7 +16,6 @@ PLATFORMS: list[Platform] = [
     Platform.COVER,
     Platform.NUMBER,
     Platform.SENSOR,
-    Platform.SWITCH,
 ]
 
 type SomaConfigEntry = ConfigEntry[SomaCoordinator]

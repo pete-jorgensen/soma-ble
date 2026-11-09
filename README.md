@@ -18,7 +18,7 @@ works well. But Zigbee gives you three values. The motor knows about sixty.
 
 | over Zigbee | additionally over Bluetooth |
 | --- | --- |
-| position, battery, link quality | **calibration state and travel limits**, motor speed, touch control, charger status and faults, input voltage, driver temperature, light level, per-move telemetry (duration, peak RPM, peak PWM, stall and under-voltage counts), move and boot counters, identify/beep, firmware and board revision, the Zigbee radio switch itself |
+| position, battery, link quality | **calibration state and travel limits**, charger status and faults, input voltage, driver temperature, light level, per-move telemetry (duration, peak RPM, peak PWM, stall and under-voltage counts), move and boot counters, identify/beep, firmware and board revision, whether the Zigbee radio is enabled |
 
 One of those matters more than the rest.
 
@@ -72,9 +72,6 @@ front LED blinks when it is awake.
 
 | Entity | |
 | --- | --- |
-| Motor speed | 1–100 |
-| Touch control | the swipe-the-motor gesture, on or off |
-| Zigbee radio | on or off — see [Enabling Zigbee](#enabling-zigbee-without-the-app) |
 | Identify | makes the motor beep |
 | Restart motor | |
 | Jog open / Jog closed | nudge the motor while calibrating — see [Calibrating](#calibrating-without-the-app) |
@@ -140,14 +137,6 @@ not a factory reset.
 If open and closed come out backwards, that is a motor setting (the
 `CMD_SWITCH_DIRECTIONS` opcode, `Cmd.SWITCH_DIRECTIONS` in the code), not something to fix by
 re-hanging the shade.
-
-## Enabling Zigbee without the app
-
-The Zigbee radio is **off from the factory**, and the documented way to turn it on is the
-vendor app. The **Zigbee radio** switch does it over Bluetooth instead.
-
-The Zigbee stack only starts at boot, so after enabling it press **Restart motor**.
-Skipping that looks exactly like the switch silently failing.
 
 ## Two generations, do not mix them
 

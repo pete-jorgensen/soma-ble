@@ -26,7 +26,6 @@ PLATFORMS = {
     "number.py": "number",
     "sensor.py": "sensor",
     "binary_sensor.py": "binary_sensor",
-    "switch.py": "switch",
 }
 
 

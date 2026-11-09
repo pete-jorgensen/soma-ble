@@ -1,16 +1,14 @@
-"""Motor speed -- a setting the Zigbee interface does not expose at all -- and the jog step.
+"""The jog step.
 
-The two are not alike. Speed lives in the motor and is read back from it; the jog step is a
-local preference that says how far each press of `Jog open` / `Jog closed` moves the shade.
-It is kept here rather than as a fixed constant because the right size changes during the
-job: long nudges to cross the window, short ones to land on the stop.
+A local preference that says how far each press of `Jog open` / `Jog closed` moves the
+shade. It is kept here rather than as a fixed constant because the right size changes
+during the job: long nudges to cross the window, short ones to land on the stop.
 """
 
 from __future__ import annotations
 
 from homeassistant.components.number import (
     NumberDeviceClass,
-    NumberEntity,
     NumberEntityDescription,
     NumberMode,
     RestoreNumber,
@@ -21,17 +19,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import SomaConfigEntry
 from .entity import SomaEntity
-from .protocol import Cmd
-
-SPEED = NumberEntityDescription(
-    key="speed",
-    translation_key="speed",
-    entity_category=EntityCategory.CONFIG,
-    native_min_value=1,
-    native_max_value=100,
-    native_step=1,
-    mode=NumberMode.SLIDER,
-)
 
 #: 15 s is the same ceiling the `jog` service enforces, and for the same reason: while
 #: uncalibrated the motor has NO end stops, so this duration is the only thing bounding
@@ -52,24 +39,7 @@ JOG_STEP = NumberEntityDescription(
 async def async_setup_entry(
     hass: HomeAssistant, entry: SomaConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    async_add_entities([SomaSpeed(entry.runtime_data), SomaJogStep(entry.runtime_data)])
-
-
-class SomaSpeed(SomaEntity, NumberEntity):
-    entity_description = SPEED
-
-    def __init__(self, coordinator) -> None:
-        super().__init__(coordinator, SPEED.key)
-        self.entity_description = SPEED
-
-    @property
-    def native_value(self) -> float | None:
-        return self.state_obj.speed
-
-    async def async_set_native_value(self, value: float) -> None:
-        await self.coordinator.async_command_and_refresh(
-            self.coordinator.device.async_command(Cmd.SET_SPEED, bytes([int(value)]))
-        )
+    async_add_entities([SomaJogStep(entry.runtime_data)])
 
 
 class SomaJogStep(SomaEntity, RestoreNumber):
