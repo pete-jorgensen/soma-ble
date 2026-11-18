@@ -40,7 +40,14 @@ to calibrate it — rather than silently accepting a command the motor will igno
 
 ## Install
 
-### HACS
+### From HACS (recommended)
+
+1. In HACS, search for **SOMA Smart Shades 3 (Bluetooth)**
+2. Install it, then restart Home Assistant
+
+### HACS custom repository
+
+Only if your HACS does not list it yet:
 
 1. HACS → three-dot menu → **Custom repositories**
 2. Add this repository, category **Integration**

@@ -1,0 +1,9 @@
+# Weekly update PRs for the actions the workflows use. The integration's own Python
+# requirements live in custom_components/*/manifest.json, which Dependabot does not read,
+# so there is no pip entry here.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
